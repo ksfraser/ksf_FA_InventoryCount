@@ -1,0 +1,36 @@
+{
+    "name": "ksfraser/ksf_fa_inventory_count",
+    "description": "FrontAccounting module: Inventory counting (stock taking) with barcode scan entry, partial/full counts, over/short adjustments via holding tank, bulk import/export and location transfers. Consolidates ksf_Inventory + FA_InventoryCount.",
+    "type": "project",
+    "license": "proprietary",
+    "authors": [
+        { "name": "Kevin Fraser", "email": "kevin@ksfraser.ca" }
+    ],
+    "require": {
+        "php": ">=7.3",
+        "ksfraser/traits": "*",
+        "ksfraser/exceptions": "*",
+        "ksfraser/ksf-fa-common": "*"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "ksfraser/famock": "*",
+        "ksfraser/ksf-modules-dao": "*"
+    },
+    "repositories": [
+        { "type": "path", "url": "../ksf_FA_Common" },
+        { "type": "vcs", "url": "https://github.com/ksfraser/FAMock.git" }
+    ],
+    "autoload": {
+        "psr-4": {
+            "ksfraser\\FrontAccounting\\InventoryCount\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ksfraser\\FrontAccounting\\InventoryCount\\Tests\\": "tests/"
+        }
+    }
+}
