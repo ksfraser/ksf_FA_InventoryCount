@@ -24,6 +24,8 @@ automatically adjusting stock through a controlled HOLDING tank location.
 | Store staff | Fast scan-based entry |
 | Accounting | Auditable adjustment transactions |
 
+**Mantis:** #0000170 `[BReq] Count Inventory`, #0000177 `[BReq] Have Holding Tank for Over/Under`, #0002668 `[BReq] Record counted data`
+
 ## Related
 
 - FR-IC-001-001 (scan entry)
@@ -32,4 +34,4 @@ automatically adjusting stock through a controlled HOLDING tank location.
 - FR-IC-001-004 (over/short summary)
 - FR-IC-001-005 (processing/adjustments)
 
-*Mantis:* inventory count project (to be linked once requirements are imported).
+*Mantis:* #0002668 `[BReq] Record counted data`

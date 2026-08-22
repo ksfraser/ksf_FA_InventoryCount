@@ -13,6 +13,7 @@ Regenerate during release prep; do not hand-edit rows.
 | BR | ProjectDcs/BR-IC-001-perform-inventory-counts.md |
 | BR | ProjectDcs/BR-IC-003-location-decommissioning-transfers.md |
 | BR | ProjectDcs/BR-IC-004-configurable-auditable-security.md |
+| DEFECTS | ProjectDcs/DEFECTS-IC-001-legacy-defect-mapping.md |
 | FR | ProjectDcs/FR-IC-001-001-barcode-scan-entry.md |
 | FR | ProjectDcs/FR-IC-001-002-scanned-code-resolution.md |
 | FR | ProjectDcs/FR-IC-001-003-count-line-maintenance.md |
@@ -22,6 +23,8 @@ Regenerate during release prep; do not hand-edit rows.
 | FR | ProjectDcs/FR-IC-003-001-transfer-all-stock.md |
 | FR | ProjectDcs/FR-IC-004-001-holding-tank-config.md |
 | FR | ProjectDcs/FR-IC-004-002-schema-install.md |
+| FR | ProjectDcs/FR-IC-005-001-report-items-not-counted-in-x-days.md |
+| FR | ProjectDcs/FR-IC-005-002-report-last-counted-date.md |
 | RTM | ProjectDcs/RTM.md |
 | UAT | ProjectDcs/UAT-IC-001-perform-partial-count.md |
 | UAT | ProjectDcs/UAT-IC-002-bulk-import-export.md |

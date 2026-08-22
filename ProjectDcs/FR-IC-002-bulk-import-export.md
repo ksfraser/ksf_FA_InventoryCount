@@ -3,6 +3,8 @@
 **Module:** ksf_FA_InventoryCount
 **Parent:** BR-IC-001 (efficiency of count entry), extends to bulk workflows.
 
+**Mantis:** #0000056 `Inventory Taking Module - Import CSV`
+
 ## Functional Requirement
 
 ### FR-IC-002-001 — Import text/CSV file of scanned codes

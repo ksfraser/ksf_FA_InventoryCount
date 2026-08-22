@@ -3,6 +3,8 @@
 **Module:** ksf_FA_InventoryCount
 **Parent:** BR-IC-001 / BR-IC-003 / BR-IC-004 as applicable
 
+**Mantis:** #0000178 `[FReq] Holding Tank Config`
+
 ## Functional Requirement
 
 The system SHALL expose a module configuration value (inv_count_holdtank) identifying the HOLDING tank location used for count adjustments.
