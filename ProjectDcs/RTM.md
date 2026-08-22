@@ -4,6 +4,7 @@ Auto-generated from ProjectDcs filenames and `@BABOK Related` tags in code/tests
 
 Regenerate during release prep; do not hand-edit rows.
 
+
 ## Documents
 
 | Type | Document |
@@ -21,6 +22,7 @@ Regenerate during release prep; do not hand-edit rows.
 | FR | ProjectDcs/FR-IC-003-001-transfer-all-stock.md |
 | FR | ProjectDcs/FR-IC-004-001-holding-tank-config.md |
 | FR | ProjectDcs/FR-IC-004-002-schema-install.md |
+| RTM | ProjectDcs/RTM.md |
 | UAT | ProjectDcs/UAT-IC-001-perform-partial-count.md |
 | UAT | ProjectDcs/UAT-IC-002-bulk-import-export.md |
 | UAT | ProjectDcs/UAT-IC-003-decommission-location.md |
@@ -40,6 +42,7 @@ Regenerate during release prep; do not hand-edit rows.
 | UT | ProjectDcs/UT-IC-001-005-002-shortage-from-tank.md |
 | UT | ProjectDcs/UT-IC-001-005-003-matched-no-transfer.md |
 | UT | ProjectDcs/UT-IC-001-005-004-empty-location-rejected.md |
+| UT | ProjectDcs/UT-IC-001-005-005-adjusted-items-publish-item-updated.md |
 | UT | ProjectDcs/UT-IC-002-001-001-parse-lines.md |
 | UT | ProjectDcs/UT-IC-002-001-002-unresolved-reported.md |
 | UT | ProjectDcs/UT-IC-002-001-003-import-needs-location.md |
@@ -80,5 +83,5 @@ Regenerate during release prep; do not hand-edit rows.
 | tests/Unit/DbCountRepositoryTest.php | UT-IC-004-002-001, UT-IC-004-002-002, UT-IC-004-002-003, UT-IC-004-002-004 |
 | tests/Unit/ExportServiceTest.php | UT-IC-002-002-001 |
 | tests/Unit/ImportServiceTest.php | UT-IC-002-001-001, UT-IC-002-001-002, UT-IC-002-001-003 |
-| tests/Unit/InventoryCountServiceTest.php | UT-IC-001-005-001, UT-IC-001-005-002, UT-IC-001-005-003, UT-IC-001-005-004, UT-IC-004-001-001 |
+| tests/Unit/InventoryCountServiceTest.php | UT-IC-001-005-001, UT-IC-001-005-002, UT-IC-001-005-003, UT-IC-001-005-004, UT-IC-001-005-005, UT-IC-004-001-001 |
 | tests/Unit/TransferAllServiceTest.php | UT-IC-003-001-001, UT-IC-003-001-002, UT-IC-003-001-003 |

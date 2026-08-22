@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
 use ksfraser\FrontAccounting\InventoryCount\Domain\CountCart;
 use ksfraser\FrontAccounting\InventoryCount\Exception\HoldingTankNotConfiguredException;
 use ksfraser\FrontAccounting\InventoryCount\Exception\LocationNotSetException;
+use ksfraser\FrontAccounting\Common\ItemEvents\ItemEventPublisher;
 use ksfraser\FrontAccounting\InventoryCount\Service\InventoryCountService;
 use ksfraser\FrontAccounting\InventoryCount\Tests\Fake\FakeCountRepository;
 use ksfraser\FrontAccounting\InventoryCount\Tests\Fake\FakeFaApi;
@@ -25,6 +26,9 @@ class InventoryCountServiceTest extends TestCase
     /** @var FakeCountRepository */
     protected $repo;
 
+    /** @var array<int, array<string, mixed>> Captured hook broadcasts. */
+    protected $broadcasts;
+
     /** @var InventoryCountService */
     protected $service;
 
@@ -35,7 +39,15 @@ class InventoryCountServiceTest extends TestCase
     {
         $this->fa = new FakeFaApi();
         $this->repo = new FakeCountRepository();
-        $this->service = new InventoryCountService($this->fa, $this->repo);
+        $this->broadcasts = [];
+        $dispatcher = function (string $hook, array $payload): void {
+            $this->broadcasts[] = ['hook' => $hook, 'payload' => $payload];
+        };
+        $this->service = new InventoryCountService(
+            $this->fa,
+            $this->repo,
+            new ItemEventPublisher($dispatcher)
+        );
     }
 
     /**
@@ -142,5 +154,32 @@ class InventoryCountServiceTest extends TestCase
 
         $this->assertCount(0, $this->fa->transfers, 'Refreshed QOH means no adjustment needed.');
         $this->assertNull($result->getTransNo());
+    }
+
+    /**
+     * Adjusted items broadcast item_updated so Square/Woocommerce resync.
+     *
+     * @BABOK Related: UT-IC-001-005-005
+     */
+    public function testAdjustedItemsPublishItemUpdated(): void
+    {
+        $cart = new CountCart();
+        $cart->addScan('ITEM5', 12.0);
+        $cart->addScan('ITEM6', 5.0);
+        $this->fa->seedQoh('ITEM5', 'STORE', 10.0); // over -> adjusted
+        $this->fa->seedQoh('ITEM6', 'STORE', 5.0);  // match -> no event
+
+        $this->service->process($cart, 'STORE', '2026-08-22', 'HOLD');
+
+        $itemHooks = array_filter($this->broadcasts, function ($b) {
+            return $b['hook'] === 'item_updated';
+        });
+        $this->assertCount(1, $itemHooks, 'Only the adjusted item broadcasts.');
+        $payload = reset($itemHooks)['payload'];
+        $this->assertSame('ITEM5', $payload['stock_id']);
+        $this->assertSame('updated', $payload['event']);
+        $this->assertSame('module', $payload['trigger']);
+        $this->assertSame(2.0, $payload['data']['adjustment_qty']);
+        $this->assertSame('over', $payload['data']['direction']);
     }
 }

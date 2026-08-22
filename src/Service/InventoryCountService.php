@@ -10,6 +10,7 @@ use ksfraser\FrontAccounting\InventoryCount\Exception\HoldingTankNotConfiguredEx
 use ksfraser\FrontAccounting\InventoryCount\Exception\LocationNotSetException;
 use ksfraser\FrontAccounting\InventoryCount\Fa\FaApiInterface;
 use ksfraser\FrontAccounting\InventoryCount\Repository\CountRepositoryInterface;
+use ksfraser\FrontAccounting\Common\ItemEvents\ItemEventPublisher;
 
 /**
  * Processes an inventory count: refreshes QOH, computes over/short variances
@@ -31,18 +32,28 @@ class InventoryCountService
     /** @var CountRepositoryInterface */
     protected $repository;
 
+    /** @var ItemEventPublisher Broadcasts item_updated so Square/Woocommerce sync. */
+    protected $publisher;
+
     /**
      * Constructor (dependency injection).
      *
      * @param FaApiInterface           $fa         FrontAccounting API wrapper.
      * @param CountRepositoryInterface $repository Count persistence.
+     * @param ItemEventPublisher|null  $publisher  Item lifecycle event publisher
+     *                                             (item_created/item_updated broadcasts);
+     *             defaults to the shared ksf_FA_Common publisher.
      *
      * @since 1.0.0
      */
-    public function __construct(FaApiInterface $fa, CountRepositoryInterface $repository)
-    {
+    public function __construct(
+        FaApiInterface $fa,
+        CountRepositoryInterface $repository,
+        ?ItemEventPublisher $publisher = null
+    ) {
         $this->fa = $fa;
         $this->repository = $repository;
+        $this->publisher = $publisher ?? new ItemEventPublisher();
     }
 
     /**
@@ -92,49 +103,61 @@ class InventoryCountService
             }
         }
 
-        if ($needsAdjustment) {
-            $transNo = $this->fa->getNextTransNo(ST_LOCTRANSFER);
-            $reference = 'INV-' . $date . '-' . $transNo;
+            if ($needsAdjustment) {
+                $transNo = $this->fa->getNextTransNo(ST_LOCTRANSFER);
+                $reference = 'INV-' . $date . '-' . $transNo;
 
-            foreach ($lines as $line) {
-                $variance = $line->variance();
-                if ($variance === 0.0) {
-                    continue;
+                foreach ($lines as $line) {
+                    $variance = $line->variance();
+                    if ($variance === 0.0) {
+                        continue;
+                    }
+                    if ($variance > 0) {
+                        // Overage: excess belongs in the holding tank.
+                        $this->fa->addStockTransferItem(
+                            $transNo,
+                            $line->getStockId(),
+                            $location,
+                            $holdingTank,
+                            $date,
+                            $reference,
+                            $variance
+                        );
+                        $result->addAdjustment($line->getStockId(), $location, $holdingTank, $variance);
+                    } else {
+                        // Shortage: pull the missing quantity from the holding tank.
+                        $shortQty = abs($variance);
+                        $this->fa->addStockTransferItem(
+                            $transNo,
+                            $line->getStockId(),
+                            $holdingTank,
+                            $location,
+                            $date,
+                            $reference,
+                            $shortQty
+                        );
+                        $result->addAdjustment(
+                            $line->getStockId(),
+                            $holdingTank,
+                            $location,
+                            $shortQty
+                        );
+                    }
+                    // Quantity changed: notify listening modules (Square, Woocommerce).
+                    $this->publisher->publishUpdated(
+                        $line->getStockId(),
+                        array(
+                            'source'         => 'inventory_count',
+                            'adjustment_qty' => abs($variance),
+                            'direction'      => $variance > 0 ? 'over' : 'short',
+                            'from'           => $variance > 0 ? $location : $holdingTank,
+                            'to'             => $variance > 0 ? $holdingTank : $location,
+                        ),
+                        'module'
+                    );
                 }
-                if ($variance > 0) {
-                    // Overage: excess belongs in the holding tank.
-                    $this->fa->addStockTransferItem(
-                        $transNo,
-                        $line->getStockId(),
-                        $location,
-                        $holdingTank,
-                        $date,
-                        $reference,
-                        $variance
-                    );
-                    $result->addAdjustment($line->getStockId(), $location, $holdingTank, $variance);
-                } else {
-                    // Shortage: pull the missing quantity from the holding tank.
-                    $shortQty = abs($variance);
-                    $this->fa->addStockTransferItem(
-                        $transNo,
-                        $line->getStockId(),
-                        $holdingTank,
-                        $location,
-                        $date,
-                        $reference,
-                        $shortQty
-                    );
-                    $result->addAdjustment(
-                        $line->getStockId(),
-                        $holdingTank,
-                        $location,
-                        $shortQty
-                    );
-                }
+                $result->setTransNo((string) $transNo);
             }
-            $result->setTransNo((string) $transNo);
-        }
 
         foreach ($lines as $line) {
             $this->repository->recordScan($line->getStockId(), $location, $line->getCountedQty());
