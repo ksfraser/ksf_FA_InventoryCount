@@ -3,7 +3,7 @@
 **Module:** ksf_FA_InventoryCount
 **Parent:** BR-IC-004 (auditability)
 **Mantis:** #0000176 `[BReq] Report Items not counted in X days`
-**Status:** BACKLOG (not yet implemented)
+**Status:** SERVICE IMPLEMENTED (report UI page pending)
 
 ## Functional Requirement
 

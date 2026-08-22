@@ -3,7 +3,7 @@
 **Module:** ksf_FA_InventoryCount
 **Parent:** BR-IC-004 (auditability)
 **Mantis:** #0000175 `[BReq] Report last counted date`
-**Status:** PARTIAL (repository API exists; report UI pending)
+**Status:** SERVICE IMPLEMENTED (repository API + CountHistoryReportService; report UI page pending)
 
 ## Functional Requirement
 
