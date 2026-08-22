@@ -85,7 +85,8 @@ class hooks_ksf_FA_InventoryCount extends hooks
     }
 
     /**
-     * Activate extension: install module schema.
+     * Activate extension: apply sql/install.sql via the FA-standard
+     * update_databases mechanism.
      *
      * @param int  $company    Company number.
      * @param bool $check_only Only check whether activation is possible.
@@ -93,28 +94,15 @@ class hooks_ksf_FA_InventoryCount extends hooks
      */
     function activate_extension($company, $check_only = true)
     {
-        global $path_to_root;
-
         $this->loadAutoloader();
 
-        if ($check_only) {
+        if (!file_exists(__DIR__ . '/sql/install.sql')) {
             return true;
         }
 
-        $sqlFile = __DIR__ . '/sql/install.sql';
-        if (!file_exists($sqlFile)) {
-            return true;
-        }
-        $sql = file_get_contents($sqlFile);
-        foreach (preg_split('/;\s*[\r\n]+/', $sql) as $statement) {
-            $statement = trim($statement);
-            if ($statement === '') {
-                continue;
-            }
-            db_query($statement, "Inventory Count install: {$statement}");
-        }
-
-        return true;
+        // FA parses the file and applies each statement itself.
+        $updates = array('install.sql' => array($this->module_name));
+        return $this->update_databases($company, $updates, $check_only);
     }
 
     /**
