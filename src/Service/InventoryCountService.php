@@ -103,61 +103,25 @@ class InventoryCountService
             }
         }
 
-            if ($needsAdjustment) {
-                $transNo = $this->fa->getNextTransNo(ST_LOCTRANSFER);
-                $reference = 'INV-' . $date . '-' . $transNo;
+        if ($needsAdjustment) {
+            // Variance booking is location-scoped stock movement, not counting,
+            // so it is delegated to ksf_FA_Warehouse where possible: inventory
+            // then has a single writer for 0_stock_moves and serials cannot
+            // diverge from it. This module keeps the inline path as a fallback
+            // so counts still work when warehouse is inactive.
+            $variances = array();
 
-                foreach ($lines as $line) {
-                    $variance = $line->variance();
-                    if ($variance === 0.0) {
-                        continue;
-                    }
-                    if ($variance > 0) {
-                        // Overage: excess belongs in the holding tank.
-                        $this->fa->addStockTransferItem(
-                            $transNo,
-                            $line->getStockId(),
-                            $location,
-                            $holdingTank,
-                            $date,
-                            $reference,
-                            $variance
-                        );
-                        $result->addAdjustment($line->getStockId(), $location, $holdingTank, $variance);
-                    } else {
-                        // Shortage: pull the missing quantity from the holding tank.
-                        $shortQty = abs($variance);
-                        $this->fa->addStockTransferItem(
-                            $transNo,
-                            $line->getStockId(),
-                            $holdingTank,
-                            $location,
-                            $date,
-                            $reference,
-                            $shortQty
-                        );
-                        $result->addAdjustment(
-                            $line->getStockId(),
-                            $holdingTank,
-                            $location,
-                            $shortQty
-                        );
-                    }
-                    // Quantity changed: notify listening modules (Square, Woocommerce).
-                    $this->publisher->publishUpdated(
-                        $line->getStockId(),
-                        array(
-                            'source'         => 'inventory_count',
-                            'adjustment_qty' => abs($variance),
-                            'direction'      => $variance > 0 ? 'over' : 'short',
-                            'from'           => $variance > 0 ? $location : $holdingTank,
-                            'to'             => $variance > 0 ? $holdingTank : $location,
-                        ),
-                        'module'
+            foreach ($lines as $line) {
+                if ($line->variance() !== 0.0) {
+                    $variances[] = array(
+                        'stock_id' => $line->getStockId(),
+                        'variance' => $line->variance(),
                     );
                 }
-                $result->setTransNo((string) $transNo);
             }
+
+            $result->setTransNo((string)$this->bookVariances($variances, $location, $date, $holdingTank, $result));
+        }
 
         foreach ($lines as $line) {
             $this->repository->recordScan($line->getStockId(), $location, $line->getCountedQty());
@@ -187,4 +151,159 @@ class InventoryCountService
         }
         return CountSummary::fromLines($lines);
     }
+
+    /**
+     * Book variances for a counted location, preferring ksf_FA_Warehouse.
+     *
+     * Warehouse owns the HOLDING tank now (moved out of this module in the
+     * 2026-10 relocation), so ask it first via hook_invoke_first -- a write
+     * capability, because two modules booking stock for the same item must not
+     * race. If no provider answers, the original inline booking runs unchanged so
+     * counting still works with warehouse inactive.
+     *
+     * Either path records the adjustment on $result and publishes the same
+     * quantity-changed events, so listeners (Square, Woocommerce) cannot tell
+     * which one ran.
+     *
+     * @param array         $variances   Each ['stock_id' => string, 'variance' => float]
+     * @param string        $location    Counted location.
+     * @param string        $date        'Y-m-d'
+     * @param string        $holdingTank HOLDING tank location code.
+     * @param ProcessResult $result      Accumulates adjustments.
+     * @return int Transfer number, or 0 when nothing was booked.
+     */
+    private function bookVariances(
+        array $variances,
+        string $location,
+        string $date,
+        string $holdingTank,
+        ProcessResult $result
+    ): int {
+        $reply = null;
+
+        if (function_exists('hook_invoke_first')) {
+            $payload = array();
+            $reply = hook_invoke_first('respondToCapabilityRequest', $payload, array(
+                'request'      => 'move_inventory',
+                'loc_code'     => $location,
+                'on_date'      => $date,
+                'variances'    => $variances,
+                'holding_tank' => $holdingTank,
+                'reference'    => 'INV',
+            ));
+        }
+
+        if (is_array($reply) && isset($reply['adjustments']) && is_array($reply['adjustments'])) {
+            foreach ($reply['adjustments'] as $adjustment) {
+                $this->recordAdjustment(
+                    $result,
+                    $publisher = null,
+                    (string)$adjustment['stock_id'],
+                    (string)$adjustment['from'],
+                    (string)$adjustment['to'],
+                    (float)$adjustment['qty'],
+                    (string)$adjustment['reason']
+                );
+            }
+
+            return (int)($reply['trans_no'] ?? 0);
+        }
+
+        return $this->bookVariancesInline($variances, $location, $date, $holdingTank, $result);
+    }
+
+    /**
+     * Original inline booking, retained as the fallback path.
+     *
+     * @param array         $variances
+     * @param string        $location
+     * @param string        $date
+     * @param string        $holdingTank
+     * @param ProcessResult $result
+     * @return int
+     */
+    private function bookVariancesInline(
+        array $variances,
+        string $location,
+        string $date,
+        string $holdingTank,
+        ProcessResult $result
+    ): int {
+        if (empty($variances)) {
+            return 0;
+        }
+
+        $transNo = $this->fa->getNextTransNo(ST_LOCTRANSFER);
+        $reference = 'INV-' . $date . '-' . $transNo;
+
+        foreach ($variances as $variance) {
+            $stockId = (string)$variance['stock_id'];
+            $amount = (float)$variance['variance'];
+
+            if ($amount > 0) {
+                // Overage: excess belongs in the holding tank.
+                $from = $location;
+                $to = $holdingTank;
+                $reason = 'over';
+            } else {
+                // Shortage: pull the missing quantity from the holding tank.
+                $from = $holdingTank;
+                $to = $location;
+                $amount = abs($amount);
+                $reason = 'short';
+            }
+
+            $this->fa->addStockTransferItem(
+                $transNo,
+                $stockId,
+                $from,
+                $to,
+                $date,
+                $reference,
+                $amount
+            );
+
+            $this->recordAdjustment($result, null, $stockId, $from, $to, $amount, $reason);
+        }
+
+        return $transNo;
+    }
+
+    /**
+     * Record one adjustment and notify listeners.
+     *
+     * @param ProcessResult $result
+     * @param object|null   $unused Publisher slot, kept for signature symmetry.
+     * @param string        $stockId
+     * @param string        $from
+     * @param string        $to
+     * @param float         $qty
+     * @param string        $reason 'over' or 'short'
+     * @return void
+     */
+    private function recordAdjustment(
+        ProcessResult $result,
+        $unused,
+        string $stockId,
+        string $from,
+        string $to,
+        float $qty,
+        string $reason
+    ): void {
+        $result->addAdjustment($stockId, $from, $to, $qty);
+
+        // Quantity changed: notify listening modules (Square, Woocommerce).
+        $this->publisher->publishUpdated(
+            $stockId,
+            array(
+                'source'         => 'inventory_count',
+                'adjustment_qty' => $qty,
+                'direction'      => $reason,
+                'from'           => $from,
+                'to'             => $to,
+            ),
+            'module'
+        );
+    }
+
 }
